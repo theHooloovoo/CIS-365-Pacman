@@ -1,4 +1,4 @@
-# baselineTeam.py
+# stalkerCenterTeam.py
 # ---------------
 # Licensing Information:  You are free to use or extend these projects for
 # educational purposes provided that (1) you do not distribute or publish
@@ -12,7 +12,7 @@
 # Pieter Abbeel (pabbeel@cs.berkeley.edu).
 
 
-# baselineTeam.py
+# stalkerCenterTeam.py
 # ---------------
 # Licensing Information: Please do not distribute or publish solutions to this
 # project. You are free to use and extend these projects for educational
@@ -33,7 +33,7 @@ from util import nearestPoint
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first = 'OffensiveReflexAgent', second = 'DefensiveReflexAgent'):
+               first = 'PredatorReflexAgent', second = 'PredatorReflexAgent'):
   """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -58,37 +58,51 @@ class ReflexCaptureAgent(CaptureAgent):
   """
   A base class for reflex agents that chooses score-maximizing actions
   """
- 
   def registerInitialState(self, gameState):
+    self.mode = 0  # mode 0 = center defense, mode 1 = rally
+    self.targetEnemy = 0  # enemy this agent must target
+    self.guardCol = 12
+    self.guardRow = [3, 10]
     self.start = gameState.getAgentPosition(self.index)
     CaptureAgent.registerInitialState(self, gameState)
+
+    #each teammate has one target enemy
+    enemies = self.getOpponents(gameState)
+    teammates = self.getTeam(gameState)
+    self.targetEnemy = enemies[teammates.index(self.index)]
+    print("Targeting Enemy: "+str(self.targetEnemy))
+
+    #switch column defense range for blue
+    if not self.red:
+      self.guardCol = 18
 
   def chooseAction(self, gameState):
     """
     Picks among directions to move with the highest Q(s,a) judged by evaluation
     (decides how to move based on state data)
+    Gives a summation of every (weight * feature) per action, so that the "best" action is taken
     """
     actions = gameState.getLegalActions(self.index)
 
     # You can profile your evaluation time by uncommenting these lines
     # start = time.time()
-    values = [self.evaluate(gameState, a) for a in actions]
 
-    #if self.index == 1:
-      #print(values, file=sys.stderr)
+    values = [self.evaluate(gameState, a) for a in actions]
+    if self.index == 0:
+      print(values, file=sys.stderr)
       # print(self.getPreviousObservation(), file=sys.stderr)
 
     # print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
 
     maxValue = max(values)
     bestActions = [a for a, v in zip(actions, values) if v == maxValue]
+
     # if self.index == 1:
     #   print(bestActions, file=sys.stderr)
 
-    #run for start if enough food is held
-    foodLeft = len(self.getFood(gameState).asList())
-
-    if foodLeft <= 2 or gameState.getAgentState(self.index).numCarrying > 5:
+    #run for the border if you can win or you have 6 food, otherwise, randomly choose from weighted actions
+    #(usually, there will only be one action in bestActions)
+    if len(self.getFood(gameState).asList()) <= 2 or gameState.getAgentState(self.index).numCarrying > 5:
       bestDist = 9999
       for action in actions:
         successor = self.getSuccessor(gameState, action)
@@ -121,8 +135,8 @@ class ReflexCaptureAgent(CaptureAgent):
     features = self.getFeatures(gameState, action)
     weights = self.getWeights(gameState, action)
 
-    #if self.index == 1:
-      # print(str(features) + str(weights), file=sys.stderr)
+    if self.index == 0:
+      print(str(features) + str(weights), file=sys.stderr)
       # print(gameState.getAgentState(self.index)) # Print out a text representation of the world.
 
     return features * weights
@@ -144,83 +158,88 @@ class ReflexCaptureAgent(CaptureAgent):
     """
     return {'successorScore': 1.0}
 
-class OffensiveReflexAgent(ReflexCaptureAgent):
+class PredatorReflexAgent(ReflexCaptureAgent):
   """
-  A reflex agent that seeks food. This is an agent
-  we give you to get an idea of what an offensive agent might look like,
-  but it is by no means the best or only way to build an offensive agent.
-  """
-  def getFeatures(self, gameState, action):
-    features = util.Counter()
-    successor = self.getSuccessor(gameState, action)
-
-    myState = successor.getAgentState(self.index)
-    myPos = myState.getPosition()
-
-    foodList = self.getFood(successor).asList()    
-    features['successorScore'] = -len(foodList)#self.getScore(successor)
-
-    # Compute distance to the nearest food
-    if len(foodList) > 0: # This should always be True,  but better safe than sorry
-      myPos = successor.getAgentState(self.index).getPosition()
-      minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
-      features['distanceToFood'] = minDistance
-
-    # Determine if the enemy is closer to you than they were last time
-    # and you are in their territory.
-    # Note: This behavior isn't perfect, and can force Pacman to cower 
-    # in a corner.  I leave it up to you to improve this behavior.
-    close_dist = 9999.0
-    if self.index == 1 and gameState.getAgentState(self.index).isPacman:
-      opp_fut_state = [successor.getAgentState(i) for i in self.getOpponents(successor)]
-      chasers = [p for p in opp_fut_state if p.getPosition() != None and not p.isPacman]
-      if len(chasers) > 0:
-        close_dist = min([float(self.getMazeDistance(myPos, c.getPosition())) for c in chasers])
-
-      # View the action and close distance information for each 
-      # possible move choice.
-      #print("Action: "+str(action))
-      #print("\t\t"+str(close_dist), sys.stderr)
-
-    features['fleeEnemy'] = 1.0/close_dist
-
-    return features
-
-  def getWeights(self, gameState, action):
-    return {'successorScore': 100, 'distanceToFood': -1, 'fleeEnemy': -100.0}
-
-class DefensiveReflexAgent(ReflexCaptureAgent):
-  """
-  A reflex agent that keeps its side Pacman-free. Again,
-  this is to give you an idea of what a defensive agent
-  could be like.  It is not the best or only way to make
-  such an agent.
+  A reflex agent that works with its teammate to straddle the center,
+  and when enemy pacmen are captured, will rally one dot.
   """
 
   def getFeatures(self, gameState, action):
     features = util.Counter()
+    #projection state via movement
     successor = self.getSuccessor(gameState, action)
 
-    myState = successor.getAgentState(self.index)
-    myPos = myState.getPosition()
+    #projected state
+    projectedState = successor.getAgentState(self.index)
+    #projected position
+    projectedPos = projectedState.getPosition()
 
     # Computes whether we're on defense (1) or offense (0)
+    """
     features['onDefense'] = 1
-    if myState.isPacman: features['onDefense'] = 0
+    if myState.isPacman:
+      features['onDefense'] = 0
+    """
 
-    # Computes distance to invaders we can see
+    #if target enemy is in start position, switch from mode 0 to mode 1
+    #target = self.getPreviousObservation()
+
+    target = successor.getAgentState(self.targetEnemy)
+    targetPos = target.getPosition()
+    unknownDistance = successor.getAgentDistances()[self.targetEnemy]
+
+    #if target != None:
+      #targetPos = target.getPosition()
+      #targetPos = target.getAgentState(self.targetEnemy).getPosition()
+
+    #print(targetPos)
+
+    #if targetPos != None:
+    #if targetPos == target.start and self.mode == 0: #not comparable?
+    #  self.mode = 1
+    # if pellet is held, switch from mode 1 to mode 0
+    if projectedState.numCarrying == 1 and self.mode == 1:
+      self.mode = 0
+
+    features['distanceFromCenter'] = 0
+    features['unknownEnemyDistance'] = 0
+    features['enemyDistance'] = 0
+    features['moveToFood'] = 0
+
+    if self.mode == 0:
+      features['distanceFromCenter'] = col_range(self.guardCol, projectedPos[0]) - 2 #column tolerance of 2 is acceptable
+      #features['moveToEnemyRow'] = row_range(targetPos[1], projectedPos[1]) #minimize row to capture enemy
+      features['unknownEnemyDistance'] = unknownDistance
+      if targetPos != None:
+        features['enemyDistance'] = self.getMazeDistance(projectedPos, targetPos)
+      #if not there, move towards guard column (take into account either side)
+      #if not there, then move towards enemy row
+      #if near or outside
+
+      #if mode 1, move towards nearest food evasively
+
+      # Computes distance to invaders
+    """
     enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
     invaders = [a for a in enemies if a.isPacman and a.getPosition() != None]
     features['numInvaders'] = len(invaders)
     if len(invaders) > 0:
-      dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
+      dists = [self.getMazeDistance(projectedPos, a.getPosition()) for a in invaders]
       features['invaderDistance'] = min(dists)
 
     if action == Directions.STOP: features['stop'] = 1
     rev = Directions.REVERSE[gameState.getAgentState(self.index).configuration.direction]
     if action == rev: features['reverse'] = 1
+    """
 
     return features
 
+  #notably, the base weights are multiplied by the features
   def getWeights(self, gameState, action):
-    return {'numInvaders': -1000, 'onDefense': 100, 'invaderDistance': -10, 'stop': -100, 'reverse': -2}
+    return {'distanceFromCenter': 15, 'enemyDistance': 2, 'unknownEnemyDistance': 1, 'moveToFood': 1}
+
+#helper functions
+def col_range(guardCol, myCol):
+  return abs(guardCol - myCol)
+def row_range(enemyRow, myRow):
+  return abs(enemyRow - myRow)

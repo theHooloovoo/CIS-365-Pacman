@@ -259,6 +259,7 @@ class CaptureAgent(Agent):
   def getCurrentObservation(self):
     """
     Returns the GameState object corresponding this agent's current observation
+    Returns the GameState object corresponding this agent's current observation
     (the observed state of the game - this may not include
     all of your opponent's agent locations exactly).
     """

@@ -70,10 +70,13 @@ class ReflexCaptureAgent(CaptureAgent):
 
     # You can profile your evaluation time by uncommenting these lines
     # start = time.time()
+
+    #evaluates each possible action
     values = [self.evaluate(gameState, a) for a in actions]
     # print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
 
     maxValue = max(values)
+    #get the maximum value - action pairs
     bestActions = [a for a, v in zip(actions, values) if v == maxValue]
 
     foodLeft = len(self.getFood(gameState).asList())
@@ -137,7 +140,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     features = util.Counter()
     successor = self.getSuccessor(gameState, action)
     foodList = self.getFood(successor).asList()    
-    features['successorScore'] = -len(foodList)#self.getScore(successor)
+    features['successorScore'] = -len(foodList) #self.getScore(successor)
 
     # Compute distance to the nearest food
 
