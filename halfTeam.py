@@ -431,8 +431,8 @@ class HalfReflexAgent(ReflexCaptureAgent):
     self.defense = False
 
     #what half you will take (bottom, top)
-    teammates = self.getTeam(gameState)
-    self.indexSmaller = (teammates.index(self.index) == 0)
+    self.teammates = self.getTeam(gameState)
+    self.indexSmaller = (self.teammates.index(self.index) == 0)
 
     #set best defensive positions (for default map -- if map is changed, these can be calculated instead)
     self.guardPos = None
@@ -516,7 +516,7 @@ class HalfReflexAgent(ReflexCaptureAgent):
       carrying += successor.getAgentState(a).numCarrying
 
     #no reason to play defense if you're scared -- go on offense instead
-    self.defense = ((self.red and score + carrying > 0) or (not self.red and score - carrying < 0)) and currentState.scaredTimer == 0
+    self.defense = ((self.red and score + carrying > 0) or (not self.red and -score - carrying < 0)) and currentState.scaredTimer == 0
 
     #set debug index to get player output
     if self.index == self.debug_index:
@@ -611,6 +611,18 @@ class HalfReflexAgent(ReflexCaptureAgent):
       if closestEnemy != None:
         if oppState.isPacman:
           features['distEnemy'] = -features['distEnemy']
+
+          # defenders should ignore pacmen if there are defending teammates closer to them
+          for o in opponents:
+            oppnPos = gameState.getAgentState(o).getPosition()
+            if oppnPos != None:
+              closerToSome = False
+              for t in self.teammates:
+                if self.getMazeDistance(gameState.getAgentState(t).getPosition(), oppnPos) < self.getMazeDistance(
+                              currentPos, oppnPos):
+                  closerToSome = True
+              if not closerToSome:
+                features['distEnemy'] = 0
         else:
           features['distEnemy'] = 0
 
