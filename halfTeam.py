@@ -564,9 +564,9 @@ class HalfReflexAgent(ReflexCaptureAgent):
     board_height = 16
     food = self.getFood(gameState).asList()
     for f in food:
-      if f[1] > board_height / 2 and self.indexSmaller:
+      if f[1] < board_height / 2 and self.indexSmaller:
         food.remove(f)
-      elif f[1] < board_height / 2 and not self.indexSmaller:
+      elif f[1] >= board_height / 2 and not self.indexSmaller:
         food.remove(f)
 
     #get distance to closest food (notably, in your half only)
@@ -621,7 +621,8 @@ class HalfReflexAgent(ReflexCaptureAgent):
                 if self.getMazeDistance(gameState.getAgentState(t).getPosition(), oppnPos) < self.getMazeDistance(
                               currentPos, oppnPos):
                   closerToSome = True
-              if not closerToSome:
+                  break
+              if closerToSome:
                 features['distEnemy'] = 0
         else:
           features['distEnemy'] = 0

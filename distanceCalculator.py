@@ -148,6 +148,7 @@ def computeDistances(layout):
             distances[(target, source)] = dist[target]
     return distances
 
+
 def getDistanceOnGrid(distances, pos1, pos2):
     key = (pos1, pos2)
     if key in distances:
