@@ -63,7 +63,7 @@ class ReflexCaptureAgent(CaptureAgent):
     CaptureAgent.registerInitialState(self, gameState)
     self.turnsAsPacman = -1
     self.loopProtection = 0
-    self.debug_index = 0
+    self.debug_index = 2
 
   def chooseAction(self, gameState):
     """
@@ -165,251 +165,6 @@ class ReflexCaptureAgent(CaptureAgent):
     """
     return {'successorScore': 1.0}
 
-class HaulerReflexAgent(ReflexCaptureAgent):
-  def registerInitialState(self, gameState):
-    ReflexCaptureAgent.registerInitialState(self, gameState)
-
-    #get one of the foods closest to the center and closest to the map edge
-    food = self.getFood(gameState).asList()
-    self.firstFood = None
-    self.blacklist = []
-
-    if self.red:
-      self.firstFood = food[random.randrange(0,len(food),1)]
-      self.safeColumn = 15
-    else:
-      self.firstFood = (10,15)
-      self.safeColumn = 16
-
-    #safe red-blue border locations
-    self.safe = []
-    for row in range(0, 15):
-      if not gameState.hasWall(self.safeColumn, row):
-        self.safe.append((self.safeColumn, row))
-
-  """
-  A reflex agent that makes a loop around the edge to get as much food as possible,
-  then (hopefully) gets the capsule for a safe trip home.
-  """
-  def getFeatures(self, gameState, action):
-    features = util.Counter()
-    successor = self.getSuccessor(gameState, action)
-
-    currentState = gameState.getAgentState(self.index)
-    currentPos = currentState.getPosition()
-    currentFood = currentState.numCarrying
-
-    projectedState = successor.getAgentState(self.index)
-    projectedPos = projectedState.getPosition()
-    projectedFood = projectedState.numCarrying
-
-    prevGameState = self.getPreviousObservation()
-    prevPosition = None
-    if prevGameState != None:
-      prevState = prevGameState.getAgentState(self.index)
-      prevPosition = prevState.getPosition()
-
-    opponents = self.getOpponents(successor)
-    opp_fut_state = None
-
-    features['startHaul'] = 0
-    features['distanceToFood'] = 0
-    features['fleeEnemy'] = 0
-    features['retreat'] = 0
-    features['getCapsule'] = 0
-
-    # Determine if the enemy is closer to you than they were last time
-    # and you are in their territory, as well as their absolute distance to you
-    delta_dist = 0
-    absolute_dist = 999
-
-    if currentState.isPacman:
-      chasers = []
-      for o in opponents:
-        oppnState = successor.getAgentState(o)
-        if oppnState.getPosition() != None and not oppnState.isPacman and not oppnState.scaredTimer > 0:
-          chasers.append(o)
-
-      closestChaser = None
-      if len(chasers) > 0:
-        for c in chasers:
-          oppnState = successor.getAgentState(c)
-          chaseDist = self.getMazeDistance(projectedPos, oppnState.getPosition())
-          if chaseDist < absolute_dist:
-            absolute_dist = chaseDist
-            closestChaser = c
-
-      if closestChaser != None:
-        oppnPos = successor.getAgentState(closestChaser).getPosition()
-        oppnPrevPos = prevGameState.getAgentState(closestChaser).getPosition()
-        #new position - old position
-        if oppnPrevPos != None and oppnPos != None:
-          delta_dist = self.getMazeDistance(oppnPrevPos, prevPosition) - \
-                       self.getMazeDistance(oppnPos, currentPos)
-
-
-    pursuitConcern = (delta_dist >= 1)
-
-    #protect from targeting the same food and getting stuck in a loop with a ghost
-    if self.loopProtection == 2:
-      minValue = 999
-      blacklistedFood = None
-      for f in self.getFood(successor).asList():
-        food_dist = self.getMazeDistance(projectedPos, f)
-        if food_dist < minValue:
-          minValue = food_dist
-          blacklistedFood = f
-      self.blacklist.append(blacklistedFood)
-
-    if self.firstFood != None:
-      features['startHaul'] = self.getMazeDistance(projectedPos, self.firstFood)
-      if projectedState.numCarrying == 1 or currentPos == self.start:
-        self.firstFood = None
-
-    foodList = self.getFood(successor).asList()
-    for f in self.blacklist:
-      foodList.remove(foodList.index(f))
-    #features['successorScore'] = -len(foodList)#self.getScore(successor)
-
-    # Compute distance to the nearest food
-    minDistance = 100
-    if projectedFood > currentFood:
-      minDistance = 0
-      self.blacklist = []
-    elif len(foodList) > 0: # This should always be True,  but better safe than sorry
-      minDistance = min([self.getMazeDistance(projectedPos, food) for food in foodList])
-
-    #find closest safe spot (on my side) distance
-    minSafe = 999
-    for pos in self.safe:
-      dist = self.getMazeDistance(projectedPos, pos)
-      if dist < minSafe:
-        minSafe = dist
-
-    #find closest capsule distance
-    minCapsule = 999
-    for c in self.getCapsules(gameState):
-      dist = self.getMazeDistance(projectedPos, c)
-      if dist < minCapsule:
-        minCapsule = dist
-
-    """
-    #determine if you're being followed!
-    if close_dist <= self.previousDistance and not close_dist == 0:
-      self.previousDistance = close_dist
-      self.pursued += 1
-    elif close_dist > self.previousDistance or close_dist == 0:
-      self.previousDistance = 100
-      self.pursued = 0
-    """
-
-    #for the first pellet collected, ignore closest pellet
-    if features['startHaul'] == 0:
-      features['distanceToFood'] = minDistance
-
-    #print("Delta Dist: "+str(delta_dist))
-    #if being pursued, ignore food and RUN
-    if pursuitConcern:
-      print("!!!Pursued!!!")
-      features['distanceToFood'] = 0
-      #if absolute_dist == 1:
-      features['fleeEnemy'] = 100 #absolute_dist
-    #otherwise, only run if you'll be captured due to going for food
-    else:
-      fleeEnemy = False
-      if absolute_dist != 999:
-        # check for food path viability compared to enemy distance
-        flee = absolute_dist - (minDistance * 2)
-        if flee <= 0:
-          fleeEnemy = True
-        if absolute_dist == 1:
-          fleeEnemy = True
-      #fleeing is only a weight if the enemy is relevant
-      if fleeEnemy:
-        features['fleeEnemy'] = absolute_dist + (minDistance * 2)
-
-    #if the enemy is scared, weight retreat by how long they will be scared
-    if currentState.isPacman:
-      if opp_fut_state != None:
-        for s in opponents:
-          oppnState = successor.getAgentState(s)
-          if not oppnState.isPacman and oppnState.scaredTimer > 0:
-            features['retreat'] -= (40 - oppnState.scaredTimer)
-      #weight retreat according to the distance to the safe point and the amount of food
-      features['retreat'] = minSafe - int(currentFood**1.25)
-      #if a capsule exists, do the same as above (capsules are weighted more heavily as a retreat option)
-      if minCapsule != 999:
-        features['getCapsule'] = minCapsule - int(currentFood**1.25)
-
-    return features
-
-  def getWeights(self, gameState, action):
-    return {'startHaul': -1, 'distanceToFood': -2,
-            'fleeEnemy': 1, 'retreat': -0.5, 'getCapsule': -0.25}
-
-class CenterReflexAgent(ReflexCaptureAgent):
-  """
-  A reflex agent that keeps its side Pacman-free. Again,
-  this is to give you an idea of what a defensive agent
-  could be like.  It is not the best or only way to make
-  such an agent.
-  """
-  def registerInitialState(self, gameState):
-    ReflexCaptureAgent.registerInitialState(self, gameState)
-
-    if self.red:
-      self.guardPos = (12, 8) #c, r
-    else:
-      self.guardPos = (19 ,8)
-
-  def getFeatures(self, gameState, action):
-    features = util.Counter()
-    successor = self.getSuccessor(gameState, action)
-
-    currentState = gameState.getAgentState(self.index)
-    currentPos = currentState.getPosition()
-    currentFood = currentState.numCarrying
-
-    projectedState = successor.getAgentState(self.index)
-    projectedPos = projectedState.getPosition()
-    projectedFood = projectedState.numCarrying
-
-    prevGameState = self.getPreviousObservation()
-    prevPosition = None
-    if prevGameState != None:
-      prevState = prevGameState.getAgentState(self.index)
-      prevPosition = prevState.getPosition()
-
-    opponents = self.getOpponents(successor)
-    oppState = [gameState.getAgentState(o) for o in opponents]
-
-    features['guard'] = 0
-    features['guardRow'] = 0
-    features['guardColumn'] = 0
-
-    features['guard'] = self.getMazeDistance(projectedPos, self.guardPos)
-
-    closestEnemy = None
-    dist = 999
-    mazeDist = 999
-    for s in oppState:
-      if s.getPosition() != None:
-        mazeDist = self.getMazeDistance(s.getPosition(),projectedPos)
-        if mazeDist < dist:
-          closestEnemy = opponents[oppState.index(s)]
-          dist = mazeDist
-
-    if closestEnemy != None:
-      oppPos = gameState.getAgentState(closestEnemy).getPosition()
-      features['guardRow'] = abs(projectedPos[1] - oppPos[1])
-
-    features['guardColumn'] = abs(projectedPos[0] - self.guardPos[0])
-
-    return features
-
-  def getWeights(self, gameState, action):
-    return {'guard': -3, 'guardRow': -2, 'guardColumn': -1}
-
 class HalfReflexAgent(ReflexCaptureAgent):
   """
   -A reflex agent that focuses pellets on a top/bottom half of the map and
@@ -433,6 +188,9 @@ class HalfReflexAgent(ReflexCaptureAgent):
     #what half you will take (bottom, top)
     self.teammates = self.getTeam(gameState)
     self.indexSmaller = (self.teammates.index(self.index) == 0)
+
+    #split ghosts up enough
+    self.splitGuard = 0
 
     #set best defensive positions (for default map -- if map is changed, these can be calculated instead)
     self.guardPos = None
@@ -471,6 +229,8 @@ class HalfReflexAgent(ReflexCaptureAgent):
     currentPos = currentState.getPosition()
     prevGameState = self.getPreviousObservation()
 
+    prevState = None
+    prevPos = None
     if prevGameState != None:
       prevState = prevGameState.getAgentState(self.index)
       prevPos = prevState.getPosition()
@@ -478,6 +238,9 @@ class HalfReflexAgent(ReflexCaptureAgent):
       opponents = self.getOpponents(gameState)
 
       if currentState.isPacman:
+        #paranoid - default is that you're being hunted
+        self.delta_dist = 999
+
         chasers = []
         for o in opponents:
           oppnState = gameState.getAgentState(o)
@@ -502,8 +265,11 @@ class HalfReflexAgent(ReflexCaptureAgent):
                          self.getMazeDistance(oppnPos, currentPos)
 
     #if the closest enemy is closer or the same distance from last time, increment pursuit counter
-    if self.delta_dist >= 0:
+    if not self.defense and self.delta_dist >= 0:
       self.pursued += 1
+      #immediate flee trigger for close distances
+      if absolute_dist <= 4:
+        self.pursued += 1
     else:
       self.pursued = 0
 
@@ -518,9 +284,14 @@ class HalfReflexAgent(ReflexCaptureAgent):
     #no reason to play defense if you're scared -- go on offense instead
     self.defense = ((self.red and score + carrying > 0) or (not self.red and -score - carrying < 0)) and currentState.scaredTimer == 0
 
+    if prevPos != None and prevPos == self.start:
+      self.splitGuard = 25
+    elif self.splitGuard > 0:
+      self.splitGuard -= 1
+
     #set debug index to get player output
     if self.index == self.debug_index:
-      print("STATUS: "+"def="+str(self.defense)+" pursued="+str(self.pursued))
+      print("STATUS: "+"def="+str(self.defense)+" pursued="+str(self.pursued)+" splitGuard="+str(self.splitGuard))
       print(actions)
       print(values)
       print("Choice: " + choice)
@@ -564,9 +335,9 @@ class HalfReflexAgent(ReflexCaptureAgent):
     board_height = 16
     food = self.getFood(gameState).asList()
     for f in food:
-      if f[1] < board_height / 2 and self.indexSmaller:
+      if f[1] <= board_height / 2 and self.indexSmaller:
         food.remove(f)
-      elif f[1] >= board_height / 2 and not self.indexSmaller:
+      elif f[1] > board_height / 2 and not self.indexSmaller:
         food.remove(f)
 
     #get distance to closest food (notably, in your half only)
@@ -598,12 +369,6 @@ class HalfReflexAgent(ReflexCaptureAgent):
       if oppState.scaredTimer > 0:
         features['distEnemy'] = 0
 
-    #if on offense with valid enemies, food to collect: if next food is too dangerous, don't go for it
-    if (currentState.isPacman and features['distEnemy'] > 0 and features['distFood'] > 0):
-      flee = features['distEnemy'] - (features['distFood'] * 2)
-      if flee <= 0:
-        features['distFood'] = 0
-
     #if defending, reverse weight of enemy to attack them, do not go for food or capsules
     if self.defense:
       features['distFood'] = 0
@@ -620,16 +385,25 @@ class HalfReflexAgent(ReflexCaptureAgent):
               for t in self.teammates:
                 if self.getMazeDistance(gameState.getAgentState(t).getPosition(), oppnPos) < self.getMazeDistance(
                               currentPos, oppnPos):
-                  closerToSome = True
+                  features['distEnemy'] = 0
                   break
-              if closerToSome:
-                features['distEnemy'] = 0
         else:
           features['distEnemy'] = 0
+    elif self.splitGuard > 0:
+      features['guard'] *= 4
+    elif self.pursued < 2:
+      features['guard'] = 0
 
     #if being pursued OR carrying too much (which shouldn't be an issue; this AI does not maximize score):
-    if self.pursued >= 2 or currentState.numCarrying >= 9:
-      features['distFood'] = 0
+    if self.pursued >= 2: #or currentState.numCarrying >= 9:
+      # if on offense with valid enemies, food to collect: if next food is too dangerous, don't go for it
+      if (currentState.isPacman and features['distEnemy'] > 0 and features['distFood'] > 0):
+        flee = features['distEnemy'] - (features['distFood'] * 2)
+        if flee <= 0:
+          features['distFood'] = 0
+    #else:
+      #features['distEnemy'] /= 2
+      #features['distFood'] = 0
 
     return features
 
