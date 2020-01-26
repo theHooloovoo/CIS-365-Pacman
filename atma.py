@@ -1,3 +1,12 @@
+"""
+atma.py
+
+A reflex agent that plays Pacman.
+Adapted from the provided vidar.py agent.
+
+By Eric Blanchet, Andy Hudson, Zack Poorman, Chesten VanPelt
+For CIS 365
+"""
 from __future__ import print_function
 from captureAgents import CaptureAgent
 import math
@@ -7,11 +16,14 @@ from game import Directions
 import game
 from util import nearestPoint
 
+#Creates a team; both team members use the same AI that varies based on their index
 def createTeam(firstIndex, secondIndex, isRed,
                first = 'Atma', second = 'Atma'):
   return [eval(first)(firstIndex), eval(second)(secondIndex)]
 
+#Generic class for reflex agents
 class ReflexCaptureAgent(CaptureAgent):
+  #Records start position, calls parent method
   def registerInitialState(self, gameState):
     self.start = gameState.getAgentPosition(self.index)
     CaptureAgent.registerInitialState(self, gameState)
@@ -24,15 +36,15 @@ class ReflexCaptureAgent(CaptureAgent):
     while(len(openNodes) != 0):
       nodeAndIndex = self.findLowestTotalCostNodeAndPop(openNodes)
       currentNode = nodeAndIndex[0]
-      del openNodes[nodeAndIndex[1]] #???
+      del openNodes[nodeAndIndex[1]]
 
       #for the lowest-cost node, get all legal actions
-      legalActions = currentNode.state.getLegalActions(agentIndex)  # gameState.getLegalActions(self.index)
+      legalActions = currentNode.state.getLegalActions(agentIndex)  
 
       successors = []
       for action in legalActions:
         successor = currentNode.state.generateSuccessor(agentIndex, action)
-        #calculate all costs(?)
+        #calculate all costs
         heuristics = self.calculateHeuristicCosts(successor, successor.getAgentPosition(agentIndex), travelTo)
 
         #do not use successor if it exceeds max cost
@@ -75,7 +87,7 @@ class ReflexCaptureAgent(CaptureAgent):
 
     return (lowestNode, lowIndex)
 
-  #checks for aggent position matches given position
+  #checks if agent position matches given position
   def agentPositionMatchesDestination(self, node, travelTo):
     agentX, agentY = node.state.getAgentPosition(self.index)
     if(agentX == int(travelTo[0]) and int(agentY) == int(travelTo[1])):
@@ -128,6 +140,7 @@ class ReflexCaptureAgent(CaptureAgent):
         if(proximity < closestEnemy):
           closestEnemy = proximity
 
+  #exponential growth for enemy distance -- required
     if(closestEnemy == 4):
       enemyCost = 3
     elif(closestEnemy == 3):
@@ -144,6 +157,7 @@ class ReflexCaptureAgent(CaptureAgent):
 
     return (enemyCost, distanceCost + enemyCost + teamateProximityCost)
 
+  #generates a future gameState with the given action completed
   def getSuccessor(self, gameState, action):
     successor = gameState.generateSuccessor(self.index, action)
     pos = successor.getAgentState(self.index).getPosition()
@@ -152,6 +166,7 @@ class ReflexCaptureAgent(CaptureAgent):
     else:
       return successor
 
+  #get path to nearest space on my side
   def getLowestCostRetreatPath(self, gameState):
     retreat = self.getRetreatCells(gameState)
 
@@ -192,6 +207,8 @@ class ReflexCaptureAgent(CaptureAgent):
       closestIndex = 0
       i = 0
       """
+    this was to avoid getting stuck in loops -- usually not necessary
+    
       if self.hunger > 45:
         if self.hungerFood == None:
           self.hungerFood = food.pop(random.randrange(len(food) - 1))
@@ -214,7 +231,8 @@ class ReflexCaptureAgent(CaptureAgent):
         lowestCost = path[1]
 
     return lowestPath
-
+  
+  #returns closest cells that are safe from opponent
   def getRetreatCells(self, gameState):
     homeSquares = []
     wallsMatrix = gameState.data.layout.walls
@@ -236,6 +254,7 @@ class ReflexCaptureAgent(CaptureAgent):
 
     return homeSquares
 
+  #determines retreat based on agent state, opponent distance/scared state
   def shouldRetreat(self, gameState):
     opponents = self.getOpponents(gameState)
     for o in opponents:
@@ -246,14 +265,22 @@ class ReflexCaptureAgent(CaptureAgent):
 
 class Atma(ReflexCaptureAgent):
   def registerInitialState(self, gameState):
+    #call parent method
     ReflexCaptureAgent.registerInitialState(self, gameState)
+    #get all teammate indices
     self.teammates = self.getTeam(gameState)
+    #get agent index is the smaller of all teammates
     self.indexSmaller = (self.teammates.index(self.index) == 0)
+
     """
+    These lines were for infinite loop protection
+    
     self.hunger = 0
     self.hungerFood = None
     self.previousCarrying = 0
-    """
+
+    These lines were testing to see if caching all maze distances would make getMazePosition() act differently
+
     #cache all maze distances
     nextPt = (0,0)
     walls = gameState.getWalls().asList()
@@ -267,10 +294,11 @@ class Atma(ReflexCaptureAgent):
         nextPt = (0, nextPt[1] + 1)
       else:
         nextPt = (nextPt[0] + 1, nextPt[1])
+    """
 
-    #whether to play perfect defense
+    #whether to play defense
     self.defense = False
-    # set perfect defensive positions (for default map -- if map is changed, these can be calculated instead)
+    # set defensive positions (for default map -- if map is changed, these can be calculated instead)
     self.guardPos = None
     if self.indexSmaller:
       if self.red:
@@ -300,6 +328,9 @@ class Atma(ReflexCaptureAgent):
 
     if self.defense:
       #head for enemy if they are pacmen, then guard position
+      """
+      "agent vision" -- this was difficult to figure out
+      
       print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
       print("INDEX: "+str(self.index))
       for o in opponents:
@@ -311,6 +342,7 @@ class Atma(ReflexCaptureAgent):
           print("distance is "+str(nextDist))
         else:
           print("Opponent " + str(o) + " OOB")
+      """
 
       #find nearest opponent (if possible)
       closestOpponent = None
@@ -326,19 +358,18 @@ class Atma(ReflexCaptureAgent):
 
       #if there's a capsule, defend it
       """
+      Didn't end up being necessary
+      
       if len(capsule) > 0 and not self.indexSmaller:
         guard = capsule[0]
       else:
         guard = self.guardPos
       """
 
-      #if there's a nearest opponent AND your teammate isn't closer, hunt them down
+      #if there's a nearest opponent, hunt them down
       if closestOpponent != None and gameState.getAgentState(closestOpponent).isPacman and \
               (self.getMazeDistance(currentPos, self.guardPos) < 5):
         oppnPos = gameState.getAgentState(closestOpponent).getPosition()
-        #for t in self.teammates:
-          #if self.getMazeDistance(gameState.getAgentState(t).getPosition(), oppnPos) > self.getMazeDistance(
-          #        currentPos, oppnPos):
         if oppnPos != None:
           enemyPath = self.findPathAndCost(gameState, self.index, oppnPos, 9999, False)
           if enemyPath != None:
@@ -350,13 +381,14 @@ class Atma(ReflexCaptureAgent):
     else:
       #go for capsule ONLY when retreating
       """
+      Going for the capsule ended up not being necessary
+      
       if((gameState.getAgentState(opponents[0]).scaredTimer == 0 or gameState.getAgentState(opponents[1]).scaredTimer == 0)
               and len(capsule) != 0):
         capsulePath = self.findPathAndCost(gameState, self.index, capsule[0], 150, True)
         if(capsulePath != None):
           return capsulePath[0][0]
-      """
-      """
+          
       print("INDEX: "+str(self.index)+" hunger="+str(self.hunger))
       if currentState.numCarrying > self.previousCarrying:
         self.hunger = 0
@@ -371,6 +403,7 @@ class Atma(ReflexCaptureAgent):
         if(foodPath != None):
           return foodPath[0]
 
+      #retreat
       if(self.shouldRetreat(gameState)):
         retreatPath = self.getLowestCostRetreatPath(gameState)
         if(retreatPath != None):
@@ -384,6 +417,8 @@ class Atma(ReflexCaptureAgent):
 
     return "Stop"
 """
+only one AI was necessary
+
 class AttackReflexAgent(ReflexCaptureAgent):
 
   def chooseAction(self, gameState):
@@ -404,6 +439,8 @@ class AttackReflexAgent(ReflexCaptureAgent):
 
     return "Stop" 
 """
+
+#stores game state and related information for path generation
 class Node:
   state = None
   parent = None
