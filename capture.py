@@ -385,6 +385,8 @@ class CaptureRules:
     """
     Checks to see whether it is time to end the game.
     """
+    #time.sleep(0.1)
+    print("Time remaining: "+str(game.length - len(game.moveHistory)))
     if 'moveHistory' in dir(game):
       if len(game.moveHistory) == game.length:
         state.data._win = True

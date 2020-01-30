@@ -72,8 +72,8 @@ class ReflexCaptureAgent(CaptureAgent):
     # You can profile your evaluation time by uncommenting these lines
     # start = time.time()
     values = [self.evaluate(gameState, a) for a in actions]
-    if self.index == 1:
-      print(values, file=sys.stderr)
+    #if self.index == 1:
+      #print(values, file=sys.stderr)
       # print(self.getPreviousObservation(), file=sys.stderr)
 
     # print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
@@ -118,8 +118,8 @@ class ReflexCaptureAgent(CaptureAgent):
     features = self.getFeatures(gameState, action)
     weights = self.getWeights(gameState, action)
 
-    if self.index == 1:
-      print(str(features) + str(weights), file=sys.stderr)
+    #if self.index == 1:
+      #print(str(features) + str(weights), file=sys.stderr)
       # print(gameState.getAgentState(self.index)) # Print out a text representation of the world.
 
     return features * weights
@@ -176,8 +176,8 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
 
       # View the action and close distance information for each 
       # possible move choice.
-      print("Action: "+str(action))
-      print("\t\t"+str(close_dist), sys.stderr)
+      #print("Action: "+str(action))
+      #print("\t\t"+str(close_dist), sys.stderr)
 
     features['fleeEnemy'] = 1.0/close_dist
 
