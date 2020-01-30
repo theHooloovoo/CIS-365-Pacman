@@ -1,5 +1,5 @@
 """
-atma.py
+atma_final_bots.py
 
 A reflex agent that plays Pacman.
 Adapted from the provided vidar.py agent.
@@ -21,7 +21,7 @@ def createTeam(firstIndex, secondIndex, isRed,
                first = 'Atma', second = 'Atma'):
   return [eval(first)(firstIndex), eval(second)(secondIndex)]
 
-#Generic class for reflex agents
+#Generic class for reflex agents; main behavior is to return the next action for the game
 class ReflexCaptureAgent(CaptureAgent):
   #Records start position, calls parent method
   def registerInitialState(self, gameState):
@@ -263,6 +263,14 @@ class ReflexCaptureAgent(CaptureAgent):
               and gameState.getAgentState(o).scaredTimer == 0) and gameState.getAgentState(self.index).isPacman:
         return True
 
+"""
+Extension of ReflexCaptureAgent.
+
+Has three unique features:
+-future path generation via vidar.py implementation
+-half-board behavior: guard positions, food are both split between agents
+-guard behavior: decides whether to play offense/defense
+"""
 class Atma(ReflexCaptureAgent):
   def registerInitialState(self, gameState):
     #call parent method
